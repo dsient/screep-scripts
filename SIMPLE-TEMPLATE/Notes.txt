@@ -1,0 +1,10 @@
+NOTES ABOUT THIS SAMPLE
+
+It is not fully functional - it has glitches, and bugs that need to be fixed.
+Current issues:
+	!- Creeps idling, have to manually kill and respawn to get them to work.
+		- Find what is making them end their "loop", versus why it is working when they first spawn.
+		- Create a system to have the creeps "fallback" to a different obj. ex: upgrader cant upgrade controller? Then put resources in storage! (NO IDLING! This is a Oligarchy not a democracy for these workers.)
+	!- Extreme need for a system to quickly create storage, and prioritize filling max storage rather than pumping out creeps.
+		- New self note: more resource gatherers != more efficiency.
+		- Build roads at some points and have builders fill the role of "Repairer" aswell.

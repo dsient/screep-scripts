@@ -1,0 +1,130 @@
+const roleHarvester = require('role.harvester');
+const roleBuilder = require('role.builder');
+const roleUpgrader = require('role.upgrader');
+const roleHauler = require('role.hauler');
+
+const desiredCounts = {
+    harvester: 8,
+    builder: 4,
+    upgrader: 4,
+    hauler: 4
+};
+
+module.exports.loop = function() {
+    // Cleanup dead creeps
+    for (const name in Memory.creeps) {
+        if (!Game.creeps[name]) {
+            delete Memory.creeps[name];
+            console.log(`Cleared memory for dead creep: ${name}`);
+        }
+    }
+
+    // Count creeps by role
+    const counts = _.countBy(Game.creeps, c => c.memory.role);
+
+    const spawn = Game.spawns['CORE'];
+    if (!spawn) {
+        console.log('Spawn "CORE" not found! Available spawns:', Object.keys(Game.spawns));
+        return;
+    }
+
+    if (!spawn.spawning && spawn.room.energyAvailable >= 100) {
+        if ((counts.harvester || 0) < desiredCounts.harvester) {
+            trySpawnCreep(spawn, 'harvester', counts.harvester || 0);
+        } else if ((counts.builder || 0) < desiredCounts.builder) {
+            trySpawnCreep(spawn, 'builder', counts.builder || 0);
+        } else if ((counts.upgrader || 0) < desiredCounts.upgrader) {
+            trySpawnCreep(spawn, 'upgrader', counts.upgrader || 0);
+        } else if ((counts.hauler || 0) < desiredCounts.hauler) {
+            trySpawnCreep(spawn, 'hauler', counts.hauler || 0);
+        }
+    }
+
+    for (const name in Game.creeps) {
+        const creep = Game.creeps[name];
+        try {
+            switch (creep.memory.role) {
+                case 'harvester': roleHarvester.run(creep); break;
+                case 'builder':   roleBuilder.run(creep); break;
+                case 'upgrader':  roleUpgrader.run(creep); break;
+                case 'hauler':    roleHauler.run(creep); break;
+                default: console.log(`⚠ Unknown role for ${name}: ${creep.memory.role}`);
+            }
+        } catch (e) {
+            console.log(`❌ Error in ${creep.memory.role} for ${name}:`, e.message);
+        }
+    }
+};
+
+function trySpawnCreep(spawn, role, currentCount) {
+    const energy = spawn.room.energyAvailable;
+    const body = getOptimalBody(role, energy);
+    if (body.length === 0) {
+        console.log(`Not enough energy (${energy}) to spawn ${role}`);
+        return false;
+    }
+
+    const memory = {
+        role: role,
+        working: false,
+        born: Game.time
+    };
+
+    const name = `${role}-${Game.time}`;
+    const result = spawn.spawnCreep(body, name, { memory });
+
+    if (result === OK) {
+        console.log(`[${spawn.name}] ✅ Spawning ${role} (${currentCount + 1}/${desiredCounts[role]}) → ${body.map(b => b[0]).join('')}`);
+        return true;
+    } else {
+        console.log(`[${spawn.name}] ❌ Failed to spawn ${role}: ${getErrorString(result)}`);
+        return false;
+    }
+}
+
+function getOptimalBody(role, energy) {
+    const BODIES = {
+        harvester: [
+            [WORK, WORK, CARRY, MOVE],
+            //[WORK, CARRY, MOVE],
+            //[WORK, MOVE]
+        ],
+        builder: [
+            [WORK, CARRY, CARRY, MOVE],
+            //[WORK, CARRY, MOVE],
+            //[CARRY, MOVE]
+        ],
+        upgrader: [
+            [WORK, CARRY, CARRY, MOVE],
+            //[WORK, CARRY, MOVE],
+            //[CARRY, MOVE]
+        ],
+        hauler: [
+            [CARRY, CARRY, CARRY, MOVE, MOVE],
+            //[CARRY, CARRY, MOVE],
+            //[CARRY, MOVE]
+        ]
+    };
+
+    if (!BODIES[role]) return [];
+    for (const body of BODIES[role]) {
+        if (bodyCost(body) <= energy) return body;
+    }
+    return [];
+}
+
+function bodyCost(body) {
+    return body.reduce((sum, part) => sum + BODYPART_COST[part], 0);
+}
+
+function getErrorString(code) {
+    const map = {
+        [ERR_NOT_OWNER]: "Not your spawn",
+        [ERR_NAME_EXISTS]: "Name exists",
+        [ERR_BUSY]: "Spawn busy",
+        [ERR_NOT_ENOUGH_ENERGY]: "Need more energy",
+        [ERR_INVALID_ARGS]: "Invalid arguments",
+        [ERR_TIRED]: "Spawn cooling down"
+    };
+    return map[code] || `Unknown error (${code})`;
+}
